@@ -5,6 +5,7 @@ import glob
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import statsmodels.api as sm
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-s", "--dataset", type=str, default="./dataset") # datasetのディレクトリ
@@ -72,4 +73,29 @@ box = ax.get_position()
 ax.set_position([box.x0, box.y0 + box.height * 0.1, box.width, box.height * 0.9])
 ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), fancybox=True, shadow=True, ncol=5)
 
+
+# 仮パラメータを配置
+p = 1
+d = 1
+q = 3
+sp = 0
+sd = 1
+sq = 1
+
+sarima = sm.tsa.SARIMAX(
+            df_cdrs_internet[df_cdrs_internet.CellID==3200]["internet"],
+            order=(p, d, q),
+            seasonal_order=(sp, sd, sq, 4),
+            enforce_stationarity=False,
+            enforce_invertibility=False
+        ).fit()
+
+print(sarima.summary())
+
+# ts_pred = sarima.predict(start="2013-11-13 22:50:00", end="2013-11-13 23:30:00")
+ts_pred = sarima.predict(start=300, end=320)
+
+plt.plot(ts_pred, label="future", color="red")
 plt.savefig("sample.png")
+
+print(ts_pred)
