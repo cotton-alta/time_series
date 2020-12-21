@@ -2,18 +2,20 @@ import os
 import argparse
 import csv
 import glob
+import codecs
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-s", "--dataset", type=str, default="./dataset") # datasetのディレクトリ
+parser.add_argument("-d", "--dataset", type=str, default="./dataset") # datasetのディレクトリ
 parser.add_argument("-o", "--output", type=str, default="output") # 結果出力先ディレクトリ
 parser.add_argument("-t", "--technique", type=str, default="sarima") # 分析手法の選択
 parser.add_argument("-c", "--countrycode", type=str, default="0") # 分析手法の選択
 parser.add_argument("-m", "--month", type=str, default="november") # 月の選択
-parser.add_argument("-d", "--date", type=str, default="01") # 日の選択
+parser.add_argument("-s", "--startdate", type=int, default=1) # 開始日の選択
+parser.add_argument("-e", "--enddate", type=int, default=3) # 終了日の選択
 parser.add_argument("-u", "--hours", type=str, default="00") # 時間の選択
 args = parser.parse_args()
 output = args.output
@@ -21,7 +23,8 @@ dataset_dir = args.dataset
 technique = args.technique
 countrycode = args.countrycode
 month = args.month
-date = args.date
+start_date = args.startdate
+end_date = args.enddate
 hour = args.hours
 
 def mkdir(path):
@@ -31,26 +34,33 @@ def mkdir(path):
 mkdir(output)
 
 if month == "november":
-    directory = glob.glob(f"{dataset_dir}/milano/full-November/*txt")
+    dates = ["2013-11-{0:02}".format(n) for n in range(start_date, end_date + 1)]
+    print(dates)
+
+    directory = [f"{dataset_dir}/milano/full-November/sms-call-internet-mi-{date}.txt" for date in dates]
 else:
     directory = glob.glob(f"{dataset_dir}/milano/full-December/*txt")
 
 df_cdrs = pd.DataFrame({})
 
 for file in directory:
-    df = pd.read_csv(
-        file,
-        names=("CellID", "datetime", "countrycode", "smsin", "smsout", "callin", "callout", "internet"),
-        delimiter="\t",
-        parse_dates=["datetime"]
-    )
-    df_cdrs = df_cdrs.append(df)
-    break
+    try:
+        df = pd.read_csv(
+            file,
+            names=("CellID", "datetime", "countrycode", "smsin", "smsout", "callin", "callout", "internet"),
+            delimiter="\t",
+            parse_dates=["datetime"]
+        )
+        df_cdrs = df_cdrs.append(df)
+    except:
+        print("read error")
 
-df_cdrs["datetime"] = pd.to_datetime(df["datetime"], unit="ms")
 df_cdrs = df_cdrs.fillna(0)
+df_cdrs["datetime"] = pd.to_datetime(df["datetime"], unit="ms")
 df_cdrs["sms"] = df_cdrs["smsin"] + df_cdrs["smsout"]
 df_cdrs["calls"] = df_cdrs["callin"] + df_cdrs["callout"]
+
+print(df_cdrs)
 
 df_cdrs_internet = df_cdrs[["CellID", "datetime", "internet", "calls", "sms"]] \
                     .groupby(["CellID", "datetime"], as_index=False) \
@@ -82,10 +92,13 @@ sp = 0
 sd = 1
 sq = 1
 
+# sm.tsa内のメソッドで最適パラメータ推定
+# arma_order_select_ic
+
 sarima = sm.tsa.SARIMAX(
             df_cdrs_internet[df_cdrs_internet.CellID==3200]["internet"],
             order=(p, d, q),
-            seasonal_order=(sp, sd, sq, 4),
+            seasonal_order=(sp, sd, sq, 30),
             enforce_stationarity=False,
             enforce_invertibility=False
         ).fit()
@@ -93,7 +106,7 @@ sarima = sm.tsa.SARIMAX(
 print(sarima.summary())
 
 # ts_pred = sarima.predict(start="2013-11-13 22:50:00", end="2013-11-13 23:30:00")
-ts_pred = sarima.predict(start=300, end=320)
+ts_pred = sarima.predict(start=60, end=150)
 
 plt.plot(ts_pred, label="future", color="red")
 plt.savefig("sample.png")
