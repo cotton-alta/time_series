@@ -3,6 +3,8 @@ import argparse
 import csv
 import glob
 import codecs
+import warnings
+warnings.filterwarnings("ignore")
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -14,8 +16,8 @@ parser.add_argument("-o", "--output", type=str, default="output") # 結果出力
 parser.add_argument("-t", "--technique", type=str, default="sarima") # 分析手法の選択
 parser.add_argument("-c", "--countrycode", type=str, default="0") # 分析手法の選択
 parser.add_argument("-m", "--month", type=str, default="november") # 月の選択
-parser.add_argument("-s", "--startdate", type=int, default=1) # 開始日の選択
-parser.add_argument("-e", "--enddate", type=int, default=3) # 終了日の選択
+parser.add_argument("-s", "--startdate", type=int, default=2) # 開始日の選択
+parser.add_argument("-e", "--enddate", type=int, default=8) # 終了日の選択
 parser.add_argument("-u", "--hours", type=str, default="00") # 時間の選択
 args = parser.parse_args()
 output = args.output
@@ -38,25 +40,33 @@ if month == "november":
     print(dates)
 
     directory = [f"{dataset_dir}/milano/full-November/sms-call-internet-mi-{date}.txt" for date in dates]
+    print(directory)
 else:
     directory = glob.glob(f"{dataset_dir}/milano/full-December/*txt")
 
 df_cdrs = pd.DataFrame({})
 
 for file in directory:
-    try:
-        df = pd.read_csv(
-            file,
-            names=("CellID", "datetime", "countrycode", "smsin", "smsout", "callin", "callout", "internet"),
-            delimiter="\t",
-            parse_dates=["datetime"]
-        )
-        df_cdrs = df_cdrs.append(df)
-    except:
-        print("read error")
+    df = pd.read_csv(
+        file,
+        names=("CellID", "datetime", "countrycode", "smsin", "smsout", "callin", "callout", "internet"),
+        delimiter="\t",
+        parse_dates=["datetime"]
+    )
+    df_cdrs = df_cdrs.append(df)
+    # try:
+    #     df = pd.read_csv(
+    #         file,
+    #         names=("CellID", "datetime", "countrycode", "smsin", "smsout", "callin", "callout", "internet"),
+    #         delimiter="\t",
+    #         parse_dates=["datetime"]
+    #     )
+    #     df_cdrs = df_cdrs.append(df)
+    # except:
+    #     print("read error")
 
 df_cdrs = df_cdrs.fillna(0)
-df_cdrs["datetime"] = pd.to_datetime(df["datetime"], unit="ms")
+df_cdrs["datetime"] = pd.to_datetime(df_cdrs["datetime"], unit="ms")
 df_cdrs["sms"] = df_cdrs["smsin"] + df_cdrs["smsout"]
 df_cdrs["calls"] = df_cdrs["callin"] + df_cdrs["callout"]
 
@@ -71,7 +81,62 @@ df_cdrs_internet = df_cdrs_internet.set_index(["hour"]).sort_index()
 
 print(df_cdrs_internet)
 
+# ---------------------------------------------
+if month == "november":
+    dates = ["2013-11-{0:02}".format(n) for n in range(start_date + 7, end_date + 8)]
+    print(dates)
+
+    directory = [f"{dataset_dir}/milano/full-November/sms-call-internet-mi-{date}.txt" for date in dates]
+else:
+    directory = glob.glob(f"{dataset_dir}/milano/full-December/*txt")
+
+df_cdrs_real = pd.DataFrame({})
+
+for file in directory:
+    df = pd.read_csv(
+        file,
+        names=("CellID", "datetime", "countrycode", "smsin", "smsout", "callin", "callout", "internet"),
+        delimiter="\t",
+        parse_dates=["datetime"]
+    )
+    df_cdrs_real = df_cdrs_real.append(df)
+
+#     try:
+#         df = pd.read_csv(
+#             file,
+#             names=("CellID", "datetime", "countrycode", "smsin", "smsout", "callin", "callout", "internet"),
+#             delimiter="\t",
+#             parse_dates=["datetime"]
+#         )
+#         df_cdrs_real = df_cdrs_real.append(df)
+#     except:
+#         print("read error")
+
+df_cdrs_real = df_cdrs_real.fillna(0)
+df_cdrs_real["datetime"] = pd.to_datetime(df_cdrs_real["datetime"], unit="ms")
+df_cdrs_real["sms"] = df_cdrs_real["smsin"] + df_cdrs_real["smsout"]
+df_cdrs_real["calls"] = df_cdrs_real["callin"] + df_cdrs_real["callout"]
+
+df_cdrs_internet_real = df_cdrs_real[["CellID", "datetime", "internet", "calls", "sms"]] \
+                    .groupby(["CellID", "datetime"], as_index=False) \
+                    .sum()
+
+df_cdrs_internet_real["hour"] = df_cdrs_internet_real.datetime.dt.hour + 24 * (df_cdrs_internet_real.datetime.dt.day - 1)
+df_cdrs_internet_real = df_cdrs_internet_real.set_index(["hour"]).sort_index()
+
+print(df_cdrs_internet_real)
+# ---------------------------------------------
+
 f = plt.figure()
+
+ax_real = df_cdrs_internet_real[df_cdrs_internet_real.CellID==3200]["internet"].plot(label="human001")
+sns.despine()
+
+box = ax_real.get_position()
+# ax_real.set_position([box.x0, box.y0 + box.height * 0.1, box.width, box.height * 0.9])
+# ax_real.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), fancybox=True, shadow=True, ncol=5)
+
+# f = plt.figure()
 
 ax = df_cdrs_internet[df_cdrs_internet.CellID==3200]["internet"].plot(label="human001")
 
@@ -83,22 +148,29 @@ box = ax.get_position()
 ax.set_position([box.x0, box.y0 + box.height * 0.1, box.width, box.height * 0.9])
 ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), fancybox=True, shadow=True, ncol=5)
 
-
 # 仮パラメータを配置
-p = 1
+p = 4
 d = 1
-q = 3
-sp = 0
+q = 2
+sp = 1
 sd = 1
 sq = 1
 
 # sm.tsa内のメソッドで最適パラメータ推定
 # arma_order_select_ic
 
+res = sm.tsa.arma_order_select_ic(
+            df_cdrs_internet[df_cdrs_internet.CellID==3200]["internet"],
+            ic="aic",
+            trend="nc"
+)
+
+print(res)
+
 sarima = sm.tsa.SARIMAX(
             df_cdrs_internet[df_cdrs_internet.CellID==3200]["internet"],
             order=(p, d, q),
-            seasonal_order=(sp, sd, sq, 30),
+            seasonal_order=(sp, sd, sq, 25),
             enforce_stationarity=False,
             enforce_invertibility=False
         ).fit()
@@ -106,9 +178,14 @@ sarima = sm.tsa.SARIMAX(
 print(sarima.summary())
 
 # ts_pred = sarima.predict(start="2013-11-13 22:50:00", end="2013-11-13 23:30:00")
-ts_pred = sarima.predict(start=60, end=150)
+# ts_pred = sarima.predict(start=60, end=150)
+ts_pred = sarima.predict(180, 250)
+# ts_pred = sarima.get_prediction(start=180, end=210)
+# ts_pred = sarima.forecast(100)
+
+print(ts_pred)
 
 plt.plot(ts_pred, label="future", color="red")
 plt.savefig("sample.png")
 
-print(ts_pred)
+# print(ts_pred)
