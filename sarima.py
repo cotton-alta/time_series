@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-d", "--dataset", type=str, default="./dataset") # datasetのディレクトリ
 parser.add_argument("-o", "--output", type=str, default="output") # 結果出力先ディレクトリ
 parser.add_argument("-t", "--technique", type=str, default="sarima") # 分析手法の選択
-parser.add_argument("-c", "--countrycode", type=str, default="0") # 分析手法の選択
+parser.add_argument("-c", "--cell", type=int, default=3200) # CellIDの指定
 parser.add_argument("-m", "--month", type=str, default="november") # 月の選択
 parser.add_argument("-s", "--startdate", type=int, default=2) # 開始日の選択
 parser.add_argument("-e", "--enddate", type=int, default=8) # 終了日の選択
@@ -23,7 +23,7 @@ args = parser.parse_args()
 output = args.output
 dataset_dir = args.dataset
 technique = args.technique
-countrycode = args.countrycode
+cell = args.cell
 month = args.month
 start_date = args.startdate
 end_date = args.enddate
@@ -37,12 +37,14 @@ mkdir(output)
 
 if month == "november":
     dates = ["2013-11-{0:02}".format(n) for n in range(start_date, end_date + 1)]
-    print(dates)
 
     directory = [f"{dataset_dir}/milano/full-November/sms-call-internet-mi-{date}.txt" for date in dates]
-    print(directory)
 else:
     directory = glob.glob(f"{dataset_dir}/milano/full-December/*txt")
+
+print("----------------------------------------")
+print(f"month: {month}")
+print("----------------------------------------")
 
 df_cdrs = pd.DataFrame({})
 
@@ -54,37 +56,26 @@ for file in directory:
         parse_dates=["datetime"]
     )
     df_cdrs = df_cdrs.append(df)
-    # try:
-    #     df = pd.read_csv(
-    #         file,
-    #         names=("CellID", "datetime", "countrycode", "smsin", "smsout", "callin", "callout", "internet"),
-    #         delimiter="\t",
-    #         parse_dates=["datetime"]
-    #     )
-    #     df_cdrs = df_cdrs.append(df)
-    # except:
-    #     print("read error")
 
 df_cdrs = df_cdrs.fillna(0)
 df_cdrs["datetime"] = pd.to_datetime(df_cdrs["datetime"], unit="ms")
 df_cdrs["sms"] = df_cdrs["smsin"] + df_cdrs["smsout"]
 df_cdrs["calls"] = df_cdrs["callin"] + df_cdrs["callout"]
 
+print("----------------------------------------")
 print(df_cdrs)
+print("----------------------------------------")
 
 df_cdrs_internet = df_cdrs[["CellID", "datetime", "internet", "calls", "sms"]] \
                     .groupby(["CellID", "datetime"], as_index=False) \
                     .sum()
 
+# df_cdrs_internet["hour"] = (df_cdrs_internet.datetime.dt.minute / 60) + df_cdrs_internet.datetime.dt.hour + 24 * (df_cdrs_internet.datetime.dt.day - 1)
 df_cdrs_internet["hour"] = df_cdrs_internet.datetime.dt.hour + 24 * (df_cdrs_internet.datetime.dt.day - 1)
-df_cdrs_internet = df_cdrs_internet.set_index(["hour"]).sort_index()
-
-print(df_cdrs_internet)
 
 # ---------------------------------------------
 if month == "november":
     dates = ["2013-11-{0:02}".format(n) for n in range(start_date + 7, end_date + 8)]
-    print(dates)
 
     directory = [f"{dataset_dir}/milano/full-November/sms-call-internet-mi-{date}.txt" for date in dates]
 else:
@@ -101,17 +92,6 @@ for file in directory:
     )
     df_cdrs_real = df_cdrs_real.append(df)
 
-#     try:
-#         df = pd.read_csv(
-#             file,
-#             names=("CellID", "datetime", "countrycode", "smsin", "smsout", "callin", "callout", "internet"),
-#             delimiter="\t",
-#             parse_dates=["datetime"]
-#         )
-#         df_cdrs_real = df_cdrs_real.append(df)
-#     except:
-#         print("read error")
-
 df_cdrs_real = df_cdrs_real.fillna(0)
 df_cdrs_real["datetime"] = pd.to_datetime(df_cdrs_real["datetime"], unit="ms")
 df_cdrs_real["sms"] = df_cdrs_real["smsin"] + df_cdrs_real["smsout"]
@@ -121,24 +101,24 @@ df_cdrs_internet_real = df_cdrs_real[["CellID", "datetime", "internet", "calls",
                     .groupby(["CellID", "datetime"], as_index=False) \
                     .sum()
 
+# df_cdrs_internet_real["hour"] = (df_cdrs_internet_real.datetime.dt.minute / 60) + df_cdrs_internet_real.datetime.dt.hour + 24 * (df_cdrs_internet_real.datetime.dt.day - 1)
 df_cdrs_internet_real["hour"] = df_cdrs_internet_real.datetime.dt.hour + 24 * (df_cdrs_internet_real.datetime.dt.day - 1)
-df_cdrs_internet_real = df_cdrs_internet_real.set_index(["hour"]).sort_index()
-
-print(df_cdrs_internet_real)
 # ---------------------------------------------
 
 f = plt.figure()
 
-ax_real = df_cdrs_internet_real[df_cdrs_internet_real.CellID==3200]["internet"].plot(label="human001")
+df_cdrs_internet_real = df_cdrs_internet_real[df_cdrs_internet_real.CellID==cell].drop_duplicates(subset="hour")
+df_cdrs_internet_real = df_cdrs_internet_real.set_index(["hour"]).sort_index()
+
+ax_real = df_cdrs_internet_real[df_cdrs_internet_real.CellID==cell]["internet"].plot(label="human001")
 sns.despine()
 
 box = ax_real.get_position()
-# ax_real.set_position([box.x0, box.y0 + box.height * 0.1, box.width, box.height * 0.9])
-# ax_real.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), fancybox=True, shadow=True, ncol=5)
 
-# f = plt.figure()
+df_cdrs_internet = df_cdrs_internet[df_cdrs_internet.CellID==cell].drop_duplicates(subset="hour")
+df_cdrs_internet = df_cdrs_internet.set_index(["hour"]).sort_index()
 
-ax = df_cdrs_internet[df_cdrs_internet.CellID==3200]["internet"].plot(label="human001")
+ax = df_cdrs_internet[df_cdrs_internet.CellID==cell]["internet"].plot(label="human001")
 
 plt.xlabel("weekly hour")
 plt.ylabel("number of connections")
@@ -149,43 +129,36 @@ ax.set_position([box.x0, box.y0 + box.height * 0.1, box.width, box.height * 0.9]
 ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), fancybox=True, shadow=True, ncol=5)
 
 # 仮パラメータを配置
-p = 4
+p = 2
 d = 1
 q = 2
 sp = 1
 sd = 1
 sq = 1
 
-# sm.tsa内のメソッドで最適パラメータ推定
-# arma_order_select_ic
-
-res = sm.tsa.arma_order_select_ic(
-            df_cdrs_internet[df_cdrs_internet.CellID==3200]["internet"],
-            ic="aic",
-            trend="nc"
-)
-
-print(res)
+# p, qを推定する際に表示
+# res = sm.tsa.arma_order_select_ic(
+#             df_cdrs_internet[df_cdrs_internet.CellID==cell]["internet"],
+#             ic="aic",
+#             trend="nc"
+# )
+# print(res)
 
 sarima = sm.tsa.SARIMAX(
-            df_cdrs_internet[df_cdrs_internet.CellID==3200]["internet"],
+            df_cdrs_internet[df_cdrs_internet.CellID==cell]["internet"],
             order=(p, d, q),
-            seasonal_order=(sp, sd, sq, 25),
+            seasonal_order=(sp, sd, sq, 61),
             enforce_stationarity=False,
             enforce_invertibility=False
         ).fit()
 
 print(sarima.summary())
 
-# ts_pred = sarima.predict(start="2013-11-13 22:50:00", end="2013-11-13 23:30:00")
-# ts_pred = sarima.predict(start=60, end=150)
-ts_pred = sarima.predict(180, 250)
-# ts_pred = sarima.get_prediction(start=180, end=210)
-# ts_pred = sarima.forecast(100)
+ts_pred = sarima.predict(start=180, end=400)
 
+print("----------------------------------------")
 print(ts_pred)
+print("----------------------------------------")
 
 plt.plot(ts_pred, label="future", color="red")
 plt.savefig("sample.png")
-
-# print(ts_pred)
