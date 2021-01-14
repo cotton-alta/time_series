@@ -28,22 +28,22 @@ Nv1Pred = []
 Nv2Pred = []
 
 u_internet_pred = []
+internet_pred = []
 u_calls = []
 u_sms = []
 
 mcmc_code = """
 data {
     int N;
-    float sms[N];
-    float calls[N];
-    float internet[N];
+    int sms[N];
+    int calls[N];
+    int internet[N];
 }
 
 parameters {
     real u_internet;
     real u_sms;
     real u_calls;
-    real <lower=0, upper=1> x;
     real <lower=0,upper=1> sigma1;
     real <lower=0,upper=1> sigma2;
     real <lower=0,upper=1> sigma3;
@@ -51,10 +51,10 @@ parameters {
 
 model {
     for (i in 1:N){
-        sms[i] ~ normal(, sigma1);
-        calls[i] ~ normal(, sigma2);
-        internet[i] ~ poisson();
-        u_internet ~ normal(, sigma3);
+        sms[i] ~ normal(u_sms, sigma1);
+        calls[i] ~ normal(u_calls, sigma2);
+        internet[i] ~ poisson(u_internet);
+        u_internet ~ normal(internet[i], sigma3);
     }
 }
 """
@@ -165,8 +165,10 @@ print("----------------------------------------")
 
 df_cdrs["hour"] = df_cdrs.datetime.dt.hour + 24 * (df_cdrs.datetime.dt.day - 1)
 
+cell = 3200
+
 df_cdrs = df_cdrs[df_cdrs.CellID==cell].drop_duplicates(subset="hour")
-df_cdrs = df_cdrs.set_index(["hour"]).sort_index()
+df_cdrs = df_cdrs.reset_index()
 
 print(df_cdrs)
 
@@ -180,23 +182,48 @@ print(f"data num: {data_num}")
 print("----------------------------------------")
 
 for i in range(data_num):
-    standata = {
-        'N': data_num,
-        'calls': call_array,
-        'sms': sms_array
-    }
-    print(standata)
-    break
+    if(i > sampleNum - 1 and i < data_num):
+        internetDF = internet[i-(sampleNum):i:1]
+        internetList = internetDF.values.tolist()
+        internetInput = [int(f) for f in internetList]
+
+        callsDF = call_array[i-(sampleNum):i:1]
+        callsList = callsDF.values.tolist()
+        callsInput = [int(f) for f in callsList]
+
+        smsDF = sms_array[i-(sampleNum):i:1]
+        smsList = smsDF.values.tolist()
+        smsInput = [int(f) for f in smsList]
+
+        standata = {
+            'N': len(internetInput),
+            'calls': callsInput,
+            'sms': smsInput,
+            'internet': internetInput
+        }
+        print(standata)
+
+        sm = pystan.StanModel(model_code=mcmc_code)
+        fit_nuts = sm.sampling(data=standata, chains=5, iter=5000)
+
+        print(fit_nuts)
+
+        ms = fit_nuts.extract()
+        u_internet_pred.append(np.mean(ms['u_internet']))
+        print(internet)
+        print(internet[i])
+        internet_pred.append(internet[i])
+
+df = pd.DataFrame(internet_pred, columns=['predicted-internet'])
+df['u_internet'] = u_internet_pred
+df.to_csv('milano_beys_result.csv')
+
 '''
 for i in range(dataNum):
     if(i > sampleNum-1 and i < dataNum):
         populationDF = population[i-(sampleNum):i:1]
         populationList = populationDF.values.tolist()
         populationInput = [int(f) for f in populationList]
-
-        traffic1DF = traffic_1[i-(sampleNum):i:1]
-        traffic1List = traffic1DF.values.tolist()
-        traffic1Input = [int(f) for f in traffic1List]
 
         traffic2DF = traffic_2[i-(sampleNum):i:1]
         traffic2List = traffic2DF.values.tolist()
@@ -205,20 +232,10 @@ for i in range(dataNum):
         CPU1DF = CPU_1[i-(sampleNum):i:1]
         CPU1List = CPU1DF.values.tolist()
         CPU1Input = [int(f) for f in CPU1List]
-        CPU2DF = CPU_2[i-(sampleNum):i:1]
-        CPU2List = CPU2DF.values.tolist()
-        CPU2Input = [int(f) for f in CPU2List]
 
         MEM1DF = MEM_1[i-(sampleNum):i:1]
         MEM1List = MEM1DF.values.tolist()
         MEM1Input = [int(f) for f in MEM1List]
-        MEM2DF = MEM_2[i-(sampleNum):i:1]
-        MEM2List = MEM2DF.values.tolist()
-        MEM2Input = [int(f) for f in MEM2List]
-
-        standata = {'N':len(populationInput), 'population':populationInput, 'traffic_1':traffic1Input,
-        'traffic_2':traffic2Input,'CPU_1':CPU1Input,'CPU_2':CPU2Input, 'MEM_1':MEM1Input,'MEM_2':MEM2Input}
-        print(standata)
 
         sm = pystan.StanModel(model_code=mcmccode)
         fit_nuts = sm.sampling(data=standata, chains=4, iter=5000)
