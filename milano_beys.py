@@ -7,23 +7,57 @@ import math
 from itertools import zip_longest
 import datetime
 import time
+import argparse
+import os
 
 from matplotlib.pylab import rcParams
 rcParams['figure.figsize'] = 15,10
 
 sampleNum = 5
-trafficPred = []
-utraffic1Pred = []
-utraffic2Pred = []
-uCPU_1 = []
-uCPU_2 = []
-uMEM_1 = []
-uMEM_2 = []
-xi1Pred = []
-xi2Pred = []
+# trafficPred = []
+# utraffic1Pred = []
+# utraffic2Pred = []
+# uCPU_1 = []
+# uCPU_2 = []
+# uMEM_1 = []
+# uMEM_2 = []
+# xi1Pred = []
+# xi2Pred = []
 NPred = []
 Nv1Pred = []
 Nv2Pred = []
+
+u_internet_pred = []
+u_calls = []
+u_sms = []
+
+mcmc_code = """
+data {
+    int N;
+    float sms[N];
+    float calls[N];
+    float internet[N];
+}
+
+parameters {
+    real u_internet;
+    real u_sms;
+    real u_calls;
+    real <lower=0, upper=1> x;
+    real <lower=0,upper=1> sigma1;
+    real <lower=0,upper=1> sigma2;
+    real <lower=0,upper=1> sigma3;
+}
+
+model {
+    for (i in 1:N){
+        sms[i] ~ normal(, sigma1);
+        calls[i] ~ normal(, sigma2);
+        internet[i] ~ poisson();
+        u_internet ~ normal(, sigma3);
+    }
+}
+"""
 
 mcmccode = """
 data {
@@ -96,10 +130,10 @@ mkdir(output)
 
 if month == "november":
     dates = ["2013-11-{0:02}".format(n) for n in range(start_date, end_date + 1)]
-
     directory = [f"{dataset_dir}/milano/full-November/sms-call-internet-mi-{date}.txt" for date in dates]
 else:
-    directory = glob.glob(f"{dataset_dir}/milano/full-December/*txt")
+    dates = ["2013-12-{0:02}".format(n) for n in range(start_date, end_date + 1)]
+    directory = [f"{dataset_dir}/milano/full-December/sms-call-internet-mi-{date}.txt" for date in dates]
 
 print("----------------------------------------")
 print(f"month: {month}")
@@ -125,21 +159,35 @@ print("----------------------------------------")
 print(df_cdrs)
 print("----------------------------------------")
 
-df_cdrs_internet = df_cdrs[["CellID", "datetime", "internet", "calls", "sms"]] \
-                    .groupby(["CellID", "datetime"], as_index=False) \
-                    .sum()
+# df_cdrs_internet = df_cdrs[["CellID", "datetime", "internet", "calls", "sms"]] \
+#                     .groupby(["CellID", "datetime"], as_index=False) \
+#                     .sum()
 
-df_cdrs_internet["hour"] = df_cdrs_internet.datetime.dt.hour + 24 * (df_cdrs_internet.datetime.dt.day - 1)
+df_cdrs["hour"] = df_cdrs.datetime.dt.hour + 24 * (df_cdrs.datetime.dt.day - 1)
 
-# population = data['population']
-dataNum = len(population)
-# traffic_1 = data['traffic_1']
-# traffic_2 = data['traffic_2']
-# CPU_1 = data['CPU_1']
-# CPU_2 = data['CPU_2']
-# MEM_1 = data['MEM_1']
-# MEM_2 = data['MEM_2']
+df_cdrs = df_cdrs[df_cdrs.CellID==cell].drop_duplicates(subset="hour")
+df_cdrs = df_cdrs.set_index(["hour"]).sort_index()
 
+print(df_cdrs)
+
+internet = df_cdrs["internet"]
+data_num = len(internet)
+call_array = df_cdrs["calls"]
+sms_array = df_cdrs["sms"]
+
+print("----------------------------------------")
+print(f"data num: {data_num}")
+print("----------------------------------------")
+
+for i in range(data_num):
+    standata = {
+        'N': data_num,
+        'calls': call_array,
+        'sms': sms_array
+    }
+    print(standata)
+    break
+'''
 for i in range(dataNum):
     if(i > sampleNum-1 and i < dataNum):
         populationDF = population[i-(sampleNum):i:1]
@@ -201,3 +249,4 @@ df['population'] = NPred
 df['Nv1'] = Nv1Pred #class-1のアクティブ人口
 df['Nv2'] = Nv2Pred #class-2のアクティブ人口
 df.to_csv('ie1resultMix.csv')
+'''
