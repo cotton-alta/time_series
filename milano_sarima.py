@@ -110,7 +110,7 @@ f = plt.figure()
 df_cdrs_internet_real = df_cdrs_internet_real[df_cdrs_internet_real.CellID==cell].drop_duplicates(subset="hour")
 df_cdrs_internet_real = df_cdrs_internet_real.set_index(["hour"]).sort_index()
 
-ax_real = df_cdrs_internet_real[df_cdrs_internet_real.CellID==cell]["internet"].plot(label="human001")
+ax_real = df_cdrs_internet_real[df_cdrs_internet_real.CellID==cell]["internet"].plot(label="future")
 sns.despine()
 
 box = ax_real.get_position()
@@ -118,7 +118,7 @@ box = ax_real.get_position()
 df_cdrs_internet = df_cdrs_internet[df_cdrs_internet.CellID==cell].drop_duplicates(subset="hour")
 df_cdrs_internet = df_cdrs_internet.set_index(["hour"]).sort_index()
 
-ax = df_cdrs_internet[df_cdrs_internet.CellID==cell]["internet"].plot(label="human001")
+ax = df_cdrs_internet[df_cdrs_internet.CellID==cell]["internet"].plot(label="current")
 
 plt.xlabel("weekly hour")
 plt.ylabel("number of connections")
@@ -160,5 +160,6 @@ print("----------------------------------------")
 print(ts_pred)
 print("----------------------------------------")
 
-plt.plot(ts_pred, label="future", color="red")
-plt.savefig("sample.png")
+plt.plot(ts_pred, label="predict", color="red")
+plt.legend()
+plt.savefig("sarima.png")
