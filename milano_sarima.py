@@ -107,6 +107,16 @@ df_cdrs_internet_real["hour"] = df_cdrs_internet_real.datetime.dt.hour + 24 * (d
 
 f = plt.figure()
 
+
+df_cdrs_internet = df_cdrs_internet[df_cdrs_internet.CellID==cell].drop_duplicates(subset="hour")
+df_cdrs_internet = df_cdrs_internet.set_index(["hour"]).sort_index()
+
+ax = df_cdrs_internet[df_cdrs_internet.CellID==cell]["internet"].plot(label="current")
+
+sns.despine()
+
+box = ax.get_position()
+
 df_cdrs_internet_real = df_cdrs_internet_real[df_cdrs_internet_real.CellID==cell].drop_duplicates(subset="hour")
 df_cdrs_internet_real = df_cdrs_internet_real.set_index(["hour"]).sort_index()
 
@@ -115,16 +125,6 @@ sns.despine()
 
 box = ax_real.get_position()
 
-df_cdrs_internet = df_cdrs_internet[df_cdrs_internet.CellID==cell].drop_duplicates(subset="hour")
-df_cdrs_internet = df_cdrs_internet.set_index(["hour"]).sort_index()
-
-ax = df_cdrs_internet[df_cdrs_internet.CellID==cell]["internet"].plot(label="current")
-
-plt.xlabel("weekly hour")
-plt.ylabel("number of connections")
-sns.despine()
-
-box = ax.get_position()
 ax.set_position([box.x0, box.y0 + box.height * 0.1, box.width, box.height * 0.9])
 ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), fancybox=True, shadow=True, ncol=5)
 
@@ -162,4 +162,6 @@ print("----------------------------------------")
 
 plt.plot(ts_pred, label="predict", color="red")
 plt.legend()
+plt.xlabel("weekly hours")
+plt.ylabel("number of connections")
 plt.savefig("sarima.png")
