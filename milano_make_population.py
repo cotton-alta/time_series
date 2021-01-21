@@ -1,6 +1,8 @@
 import pandas as pd
 import argparse
 import os
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-d", "--dataset", type=str, default="./dataset") # datasetのディレクトリ
@@ -56,21 +58,41 @@ df_cdrs["datetime"] = pd.to_datetime(df_cdrs["datetime"], unit="ms")
 df_cdrs["sms"] = df_cdrs["smsin"] + df_cdrs["smsout"]
 df_cdrs["calls"] = df_cdrs["callin"] + df_cdrs["callout"]
 
+df_cdrs_internet = df_cdrs[["CellID", "datetime", "internet", "calls", "sms"]] \
+                    .groupby(["CellID", "datetime"], as_index=False) \
+                    .sum()
+
 print("----------------------------------------")
 print(df_cdrs)
 print("----------------------------------------")
 
-df_cdrs["hour"] = df_cdrs.datetime.dt.hour + 24 * (df_cdrs.datetime.dt.day - 1)
+df_cdrs_internet["hour"] = df_cdrs_internet.datetime.dt.hour + 24 * (df_cdrs_internet.datetime.dt.day - 1)
 
-df_cdrs = df_cdrs[df_cdrs.CellID==cell].drop_duplicates(subset="hour")
-df_cdrs = df_cdrs.reset_index()
+# internet = df_cdrs["internet"]
+# data_num = len(internet)
+# call_array = df_cdrs["calls"]
+# sms_array = df_cdrs["sms"]
 
+df_cdrs_internet["population"] = df_cdrs_internet[df_cdrs_internet.CellID==cell]["internet"] / internet_per_person
+df_cdrs_internet["population"] = df_cdrs_internet["population"].ewm(span=10).mean()
+f = plt.figure()
 
-internet = df_cdrs["internet"]
-data_num = len(internet)
-call_array = df_cdrs["calls"]
-sms_array = df_cdrs["sms"]
+df_cdrs_internet = df_cdrs_internet[df_cdrs_internet.CellID==cell].drop_duplicates(subset="hour")
+df_cdrs_internet = df_cdrs_internet.set_index(["hour"]).sort_index()
 
-df_cdrs["population"] = df_cdrs["internet"] / internet_per_person
+ax = df_cdrs_internet[df_cdrs_internet.CellID==cell]["population"].plot(label="population")
+sns.despine()
 
+box = ax.get_position()
+
+ax.set_position([box.x0, box.y0 + box.height * 0.1, box.width, box.height * 0.9])
+ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), fancybox=True, shadow=True, ncol=5)
+
+plt.legend()
+
+plt.xlabel("weekly hours")
+plt.ylabel("number of connections")
+plt.savefig("population.png")
+
+df_cdrs_internet.to_csv('milano_population.csv')
 print(df_cdrs)
