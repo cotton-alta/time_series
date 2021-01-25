@@ -24,13 +24,17 @@ data {
     int N;
     int sms[N];
     int calls[N];
-    int internet[N];
+    int population[N];
+    int traffic[N];
+    real x[N];
 }
 
 parameters {
-    real u_internet;
+    real u_traffic;
     real u_sms;
     real u_calls;
+    real population;
+    real <lower=0,upper=1> x_i;
     real <lower=0,upper=1> sigma1;
     real <lower=0,upper=1> sigma2;
     real <lower=0,upper=1> sigma3;
@@ -40,8 +44,8 @@ model {
     for (i in 1:N){
         sms[i] ~ normal(u_sms, sigma1);
         calls[i] ~ normal(u_calls, sigma2);
-        internet[i] ~ poisson(u_internet);
-        u_internet ~ normal(internet[i], sigma3);
+        traffic[i] ~ poisson(u_traffic * x_i * population[i]);
+        u_traffic ~ normal(traffic[i] / population[i] * x_i, sigma3);
     }
 }
 """
@@ -71,46 +75,51 @@ def mkdir(path):
 
 mkdir(output)
 
-if month == "november":
-    dates = ["2013-11-{0:02}".format(n) for n in range(start_date, end_date + 1)]
-    directory = [f"{dataset_dir}/milano/full-November/sms-call-internet-mi-{date}.txt" for date in dates]
-else:
-    dates = ["2013-12-{0:02}".format(n) for n in range(start_date, end_date + 1)]
-    directory = [f"{dataset_dir}/milano/full-December/sms-call-internet-mi-{date}.txt" for date in dates]
+df = pd.read_csv("./milano_population.csv")
 
-print("----------------------------------------")
-print(f"month: {month}")
-print("----------------------------------------")
+# if month == "november":
+#     dates = ["2013-11-{0:02}".format(n) for n in range(start_date, end_date + 1)]
+#     directory = [f"{dataset_dir}/milano/full-November/sms-call-internet-mi-{date}.txt" for date in dates]
+# else:
+#     dates = ["2013-12-{0:02}".format(n) for n in range(start_date, end_date + 1)]
+#     directory = [f"{dataset_dir}/milano/full-December/sms-call-internet-mi-{date}.txt" for date in dates]
 
-df_cdrs = pd.DataFrame({})
+# print("----------------------------------------")
+# print(f"month: {month}")
+# print("----------------------------------------")
 
-for file in directory:
-    df = pd.read_csv(
-        file,
-        names=("CellID", "datetime", "countrycode", "smsin", "smsout", "callin", "callout", "internet"),
-        delimiter="\t",
-        parse_dates=["datetime"]
-    )
-    df_cdrs = df_cdrs.append(df)
+# df_cdrs = pd.DataFrame({})
 
-df_cdrs = df_cdrs.fillna(0)
-df_cdrs["datetime"] = pd.to_datetime(df_cdrs["datetime"], unit="ms")
-df_cdrs["sms"] = df_cdrs["smsin"] + df_cdrs["smsout"]
-df_cdrs["calls"] = df_cdrs["callin"] + df_cdrs["callout"]
+# for file in directory:
+#     df = pd.read_csv(
+#         file,
+#         names=("CellID", "datetime", "countrycode", "smsin", "smsout", "callin", "callout", "internet"),
+#         delimiter="\t",
+#         parse_dates=["datetime"]
+#     )
+#     df_cdrs = df_cdrs.append(df)
 
-print("----------------------------------------")
-print(df_cdrs)
-print("----------------------------------------")
+# df_cdrs = df_cdrs.fillna(0)
+# df_cdrs["datetime"] = pd.to_datetime(df_cdrs["datetime"], unit="ms")
+# df_cdrs["sms"] = df_cdrs["smsin"] + df_cdrs["smsout"]
+# df_cdrs["calls"] = df_cdrs["callin"] + df_cdrs["callout"]
 
-df_cdrs["hour"] = df_cdrs.datetime.dt.hour + 24 * (df_cdrs.datetime.dt.day - 1)
+# print("----------------------------------------")
+# print(df_cdrs)
+# print("----------------------------------------")
 
-df_cdrs = df_cdrs[df_cdrs.CellID==cell].drop_duplicates(subset="hour")
-df_cdrs = df_cdrs.reset_index()
+# df_cdrs["hour"] = df_cdrs.datetime.dt.hour + 24 * (df_cdrs.datetime.dt.day - 1)
 
-print(df_cdrs)
+# df_cdrs = df_cdrs[df_cdrs.CellID==cell].drop_duplicates(subset="hour")
+# df_cdrs = df_cdrs.reset_index()
 
-internet = df_cdrs["internet"]
-data_num = len(internet)
+# print(df_cdrs)
+
+population = df_cdrs["population"]
+traffic = df_cdrs["traffic"]
+# 仮置き
+x_i = df_cdrs["traffic"] * 0. + 0.8
+data_num = len(traffic)
 call_array = df_cdrs["calls"]
 sms_array = df_cdrs["sms"]
 
@@ -120,9 +129,17 @@ print("----------------------------------------")
 
 for i in range(data_num):
     if(i > sampleNum - 1 and i < data_num):
-        internetDF = internet[i-(sampleNum):i:1]
-        internetList = internetDF.values.tolist()
-        internetInput = [int(f) for f in internetList]
+        populationDF = population[i-(sampleNum):i:1]
+        populationList = populationDF.values.tolist()
+        populationInput = [int(f) for f in populationList]
+
+        x_iDF = x_i[i-(sampleNum):i:1]
+        x_iList = x_iDF.values.tolist()
+        x_iInput = [int(f) for f in x_iList]
+
+        trafficDF = traffic[i-(sampleNum):i:1]
+        trafficList = trafficDF.values.tolist()
+        trafficInput = [int(f) for f in trafficList]
 
         callsDF = call_array[i-(sampleNum):i:1]
         callsList = callsDF.values.tolist()
@@ -133,10 +150,12 @@ for i in range(data_num):
         smsInput = [int(f) for f in smsList]
 
         standata = {
-            'N': len(internetInput),
+            'N': len(trafficInput),
             'calls': callsInput,
             'sms': smsInput,
-            'internet': internetInput
+            'traffic': trafficInput,
+            'population': populationInput,
+            'x': x_iInput
         }
         print(standata)
 
@@ -146,11 +165,13 @@ for i in range(data_num):
         print(fit_nuts)
 
         ms = fit_nuts.extract()
-        u_internet_pred.append(np.mean(ms['u_internet']))
-        print(internet)
-        print(internet[i])
-        internet_pred.append(internet[i])
+        u_traffic_pred.append(np.mean(ms['u_traffic']))
+        x_pred = np.mean(ms['x'])
+        print(traffic)
+        print(traffic[i])
+        traffic_pred.append(traffic[i])
 
-df = pd.DataFrame(internet_pred, columns=['predicted-internet'])
-df['u_internet'] = u_internet_pred
+df = pd.DataFrame(traffic_pred, columns=['predicted-traffic'])
+df['u_traffic'] = u_traffic_pred
+
 df.to_csv('milano_beys_result.csv')

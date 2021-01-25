@@ -11,7 +11,7 @@ parser.add_argument("-t", "--technique", type=str, default="sarima") # 分析手
 parser.add_argument("-c", "--cell", type=int, default=3200) # CellIDの指定
 parser.add_argument("-m", "--month", type=str, default="november") # 月の選択
 parser.add_argument("-s", "--startdate", type=int, default=2) # 開始日の選択
-parser.add_argument("-e", "--enddate", type=int, default=8) # 終了日の選択
+parser.add_argument("-e", "--enddate", type=int, default=14) # 終了日の選択
 parser.add_argument("-u", "--hours", type=str, default="00") # 時間の選択
 parser.add_argument("-p", "--person", type=int, default=10) # 1人の1時間当たりの通信量
 args = parser.parse_args()
@@ -75,6 +75,7 @@ df_cdrs_internet["hour"] = df_cdrs_internet.datetime.dt.hour + 24 * (df_cdrs_int
 
 df_cdrs_internet["population"] = df_cdrs_internet[df_cdrs_internet.CellID==cell]["internet"] / internet_per_person
 df_cdrs_internet["population"] = df_cdrs_internet["population"].ewm(span=10).mean()
+df_cdrs_internet["traffic"] = df_cdrs_internet["population"] * internet_per_person
 f = plt.figure()
 
 df_cdrs_internet = df_cdrs_internet[df_cdrs_internet.CellID==cell].drop_duplicates(subset="hour")

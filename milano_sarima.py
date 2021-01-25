@@ -70,7 +70,6 @@ df_cdrs_internet = df_cdrs[["CellID", "datetime", "internet", "calls", "sms"]] \
                     .groupby(["CellID", "datetime"], as_index=False) \
                     .sum()
 
-# df_cdrs_internet["hour"] = (df_cdrs_internet.datetime.dt.minute / 60) + df_cdrs_internet.datetime.dt.hour + 24 * (df_cdrs_internet.datetime.dt.day - 1)
 df_cdrs_internet["hour"] = df_cdrs_internet.datetime.dt.hour + 24 * (df_cdrs_internet.datetime.dt.day - 1)
 
 # ---------------------------------------------
@@ -106,7 +105,6 @@ df_cdrs_internet_real["hour"] = df_cdrs_internet_real.datetime.dt.hour + 24 * (d
 # ---------------------------------------------
 
 f = plt.figure()
-
 
 df_cdrs_internet = df_cdrs_internet[df_cdrs_internet.CellID==cell].drop_duplicates(subset="hour")
 df_cdrs_internet = df_cdrs_internet.set_index(["hour"]).sort_index()
@@ -154,6 +152,7 @@ sarima = sm.tsa.SARIMAX(
 
 print(sarima.summary())
 
+# predict
 ts_pred = sarima.predict(start=180, end=400)
 
 print("----------------------------------------")
@@ -164,4 +163,17 @@ plt.plot(ts_pred, label="predict", color="red")
 plt.legend()
 plt.xlabel("weekly hours")
 plt.ylabel("number of connections")
-plt.savefig("sarima.png")
+plt.savefig("sarima_predict.png")
+plt.clf()
+
+# resid
+ts_resid = sarima.resid
+# fig = plt.figure(figsize=(12,8))
+# ax1 = fig.add_subplot(211)
+sm.graphics.tsa.plot_acf(ts_resid, lags=150, ax=ax1, label="resid")
+# box = ax1.get_position()
+# ax1.set_position([box.x0, box.y0 + box.height * 0.1, box.width, box.height * 0.9])
+# ax1.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), fancybox=True, shadow=True, ncol=5)
+plt.xlabel("weekly hours")
+plt.savefig("sarima_resid.png")
+plt.clf()
