@@ -18,7 +18,31 @@ u_internet_pred = []
 internet_pred = []
 u_calls = []
 u_sms = []
+u_traffic_pred = []
+traffic_pred = []
 
+mcmc_code = """
+data {
+    int<lower=1> N;
+    int population[N];
+    int traffic[N];
+}
+
+parameters {
+    real traf_mu;
+    real <lower=0,upper=1> x;
+}
+
+model {
+    for (i in 1:N){
+        traffic[i] ~ poisson(traf_mu + x * population[i]);
+    }
+    x ~ normal(0, 1);
+    traf_mu ~ normal(0, 1000);
+}
+"""
+
+'''
 mcmc_code = """
 data {
     int N;
@@ -33,7 +57,6 @@ parameters {
     real u_traffic;
     real u_sms;
     real u_calls;
-    real population;
     real <lower=0,upper=1> x_i;
     real <lower=0,upper=1> sigma1;
     real <lower=0,upper=1> sigma2;
@@ -49,6 +72,7 @@ model {
     }
 }
 """
+'''
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-d", "--dataset", type=str, default="./dataset") # datasetのディレクトリ
@@ -74,51 +98,14 @@ def mkdir(path):
         os.makedirs(path)
 
 mkdir(output)
+mkdir('fit_results')
 
-df = pd.read_csv("./milano_population.csv")
-
-# if month == "november":
-#     dates = ["2013-11-{0:02}".format(n) for n in range(start_date, end_date + 1)]
-#     directory = [f"{dataset_dir}/milano/full-November/sms-call-internet-mi-{date}.txt" for date in dates]
-# else:
-#     dates = ["2013-12-{0:02}".format(n) for n in range(start_date, end_date + 1)]
-#     directory = [f"{dataset_dir}/milano/full-December/sms-call-internet-mi-{date}.txt" for date in dates]
-
-# print("----------------------------------------")
-# print(f"month: {month}")
-# print("----------------------------------------")
-
-# df_cdrs = pd.DataFrame({})
-
-# for file in directory:
-#     df = pd.read_csv(
-#         file,
-#         names=("CellID", "datetime", "countrycode", "smsin", "smsout", "callin", "callout", "internet"),
-#         delimiter="\t",
-#         parse_dates=["datetime"]
-#     )
-#     df_cdrs = df_cdrs.append(df)
-
-# df_cdrs = df_cdrs.fillna(0)
-# df_cdrs["datetime"] = pd.to_datetime(df_cdrs["datetime"], unit="ms")
-# df_cdrs["sms"] = df_cdrs["smsin"] + df_cdrs["smsout"]
-# df_cdrs["calls"] = df_cdrs["callin"] + df_cdrs["callout"]
-
-# print("----------------------------------------")
-# print(df_cdrs)
-# print("----------------------------------------")
-
-# df_cdrs["hour"] = df_cdrs.datetime.dt.hour + 24 * (df_cdrs.datetime.dt.day - 1)
-
-# df_cdrs = df_cdrs[df_cdrs.CellID==cell].drop_duplicates(subset="hour")
-# df_cdrs = df_cdrs.reset_index()
-
-# print(df_cdrs)
+df_cdrs = pd.read_csv("./milano_population.csv")
 
 population = df_cdrs["population"]
 traffic = df_cdrs["traffic"]
 # 仮置き
-x_i = df_cdrs["traffic"] * 0. + 0.8
+# x_i = df_cdrs["traffic"] * 0. + 0.8
 data_num = len(traffic)
 call_array = df_cdrs["calls"]
 sms_array = df_cdrs["sms"]
@@ -133,9 +120,9 @@ for i in range(data_num):
         populationList = populationDF.values.tolist()
         populationInput = [int(f) for f in populationList]
 
-        x_iDF = x_i[i-(sampleNum):i:1]
-        x_iList = x_iDF.values.tolist()
-        x_iInput = [int(f) for f in x_iList]
+        # x_iDF = x_i[i-(sampleNum):i:1]
+        # x_iList = x_iDF.values.tolist()
+        # x_iInput = [int(f) for f in x_iList]
 
         trafficDF = traffic[i-(sampleNum):i:1]
         trafficList = trafficDF.values.tolist()
@@ -151,11 +138,8 @@ for i in range(data_num):
 
         standata = {
             'N': len(trafficInput),
-            'calls': callsInput,
-            'sms': smsInput,
             'traffic': trafficInput,
-            'population': populationInput,
-            'x': x_iInput
+            'population': populationInput
         }
         print(standata)
 
@@ -165,13 +149,22 @@ for i in range(data_num):
         print(fit_nuts)
 
         ms = fit_nuts.extract()
-        u_traffic_pred.append(np.mean(ms['u_traffic']))
-        x_pred = np.mean(ms['x'])
-        print(traffic)
-        print(traffic[i])
-        traffic_pred.append(traffic[i])
+        traffic_pred.append(np.mean(ms['traf_mu']))
+
+        print('-----------------------------')
+        print(f'i: {i}')
+        print('-----------------------------')
+
+        plt.figure()
+        fit_nuts.plot()
+        plt.savefig(f'fit_results/fit_result_{i}.png')
+        plt.close()
+        # x_pred = np.mean(ms['x_i'])
+        # print(traffic)
+        # print(traffic[i])
+        # traffic_pred.append(traffic[i])
 
 df = pd.DataFrame(traffic_pred, columns=['predicted-traffic'])
-df['u_traffic'] = u_traffic_pred
+# df['u_traffic'] = u_traffic_pred
 
 df.to_csv('milano_beys_result.csv')
