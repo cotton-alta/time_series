@@ -13,14 +13,6 @@ import os
 from matplotlib.pylab import rcParams
 rcParams['figure.figsize'] = 15,10
 
-sampleNum = 5
-u_internet_pred = []
-internet_pred = []
-u_calls = []
-u_sms = []
-u_traffic_pred = []
-traffic_pred = []
-
 mcmc_code = """
 data {
     int<lower=1> N;
@@ -29,50 +21,18 @@ data {
 }
 
 parameters {
-    real traf_mu;
+    real per_person;
     real <lower=0,upper=1> x;
 }
 
 model {
     for (i in 1:N){
-        traffic[i] ~ poisson(traf_mu + x * population[i]);
+        traffic[i] ~ poisson(x * population[i] * per_person);
     }
     x ~ normal(0, 1);
-    traf_mu ~ normal(0, 1000);
+    per_person ~ normal(0, 100);
 }
 """
-
-'''
-mcmc_code = """
-data {
-    int N;
-    int sms[N];
-    int calls[N];
-    int population[N];
-    int traffic[N];
-    real x[N];
-}
-
-parameters {
-    real u_traffic;
-    real u_sms;
-    real u_calls;
-    real <lower=0,upper=1> x_i;
-    real <lower=0,upper=1> sigma1;
-    real <lower=0,upper=1> sigma2;
-    real <lower=0,upper=1> sigma3;
-}
-
-model {
-    for (i in 1:N){
-        sms[i] ~ normal(u_sms, sigma1);
-        calls[i] ~ normal(u_calls, sigma2);
-        traffic[i] ~ poisson(u_traffic * x_i * population[i]);
-        u_traffic ~ normal(traffic[i] / population[i] * x_i, sigma3);
-    }
-}
-"""
-'''
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-d", "--dataset", type=str, default="./dataset") # datasetのディレクトリ
@@ -104,11 +64,12 @@ df_cdrs = pd.read_csv("./milano_population.csv")
 
 population = df_cdrs["population"]
 traffic = df_cdrs["traffic"]
-# 仮置き
-# x_i = df_cdrs["traffic"] * 0. + 0.8
 data_num = len(traffic)
-call_array = df_cdrs["calls"]
-sms_array = df_cdrs["sms"]
+# call_array = df_cdrs["calls"]
+# sms_array = df_cdrs["sms"]
+sampleNum = 5
+x_pred = []
+per_person_pred = []
 
 print("----------------------------------------")
 print(f"data num: {data_num}")
@@ -120,21 +81,17 @@ for i in range(data_num):
         populationList = populationDF.values.tolist()
         populationInput = [int(f) for f in populationList]
 
-        # x_iDF = x_i[i-(sampleNum):i:1]
-        # x_iList = x_iDF.values.tolist()
-        # x_iInput = [int(f) for f in x_iList]
-
         trafficDF = traffic[i-(sampleNum):i:1]
         trafficList = trafficDF.values.tolist()
         trafficInput = [int(f) for f in trafficList]
 
-        callsDF = call_array[i-(sampleNum):i:1]
-        callsList = callsDF.values.tolist()
-        callsInput = [int(f) for f in callsList]
+        # callsDF = call_array[i-(sampleNum):i:1]
+        # callsList = callsDF.values.tolist()
+        # callsInput = [int(f) for f in callsList]
 
-        smsDF = sms_array[i-(sampleNum):i:1]
-        smsList = smsDF.values.tolist()
-        smsInput = [int(f) for f in smsList]
+        # smsDF = sms_array[i-(sampleNum):i:1]
+        # smsList = smsDF.values.tolist()
+        # smsInput = [int(f) for f in smsList]
 
         standata = {
             'N': len(trafficInput),
@@ -145,26 +102,20 @@ for i in range(data_num):
 
         sm = pystan.StanModel(model_code=mcmc_code)
         fit_nuts = sm.sampling(data=standata, chains=5, iter=5000)
-
         print(fit_nuts)
 
         ms = fit_nuts.extract()
-        traffic_pred.append(np.mean(ms['traf_mu']))
-
-        print('-----------------------------')
-        print(f'i: {i}')
-        print('-----------------------------')
 
         plt.figure()
         fit_nuts.plot()
         plt.savefig(f'fit_results/fit_result_{i}.png')
         plt.close()
-        # x_pred = np.mean(ms['x_i'])
-        # print(traffic)
-        # print(traffic[i])
-        # traffic_pred.append(traffic[i])
+        x = np.mean(ms['x'])
+        per_person = np.mean(ms['per_person'])
 
-df = pd.DataFrame(traffic_pred, columns=['predicted-traffic'])
-# df['u_traffic'] = u_traffic_pred
+        per_person_pred.append(per_person)
+        x_pred.append(x)
+
+df = pd.DataFrame({ 'predicted_x': x_pred, 'predicted_per_person': per_person_pred })
 
 df.to_csv('milano_beys_result.csv')
