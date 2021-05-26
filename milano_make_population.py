@@ -25,6 +25,8 @@ end_date = args.enddate
 hour = args.hours
 internet_per_person = args.person
 
+active_user = 0.8
+
 def mkdir(path):
     if not os.path.isdir(path):
         os.makedirs(path)
@@ -73,9 +75,9 @@ df_cdrs_internet["hour"] = df_cdrs_internet.datetime.dt.hour + 24 * (df_cdrs_int
 # call_array = df_cdrs["calls"]
 # sms_array = df_cdrs["sms"]
 
-df_cdrs_internet["population"] = df_cdrs_internet[df_cdrs_internet.CellID==cell]["internet"] / internet_per_person
+df_cdrs_internet["population"] = df_cdrs_internet[df_cdrs_internet.CellID==cell]["internet"] / (active_user * internet_per_person)
 df_cdrs_internet["population"] = df_cdrs_internet["population"].ewm(span=10).mean()
-df_cdrs_internet["traffic"] = df_cdrs_internet["population"] * internet_per_person
+df_cdrs_internet["traffic"] = df_cdrs_internet["population"] * active_user * internet_per_person
 f = plt.figure()
 
 df_cdrs_internet = df_cdrs_internet[df_cdrs_internet.CellID==cell].drop_duplicates(subset="hour")

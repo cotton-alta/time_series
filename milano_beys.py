@@ -65,8 +65,6 @@ df_cdrs = pd.read_csv("./milano_population.csv")
 population = df_cdrs["population"]
 traffic = df_cdrs["traffic"]
 data_num = len(traffic)
-# call_array = df_cdrs["calls"]
-# sms_array = df_cdrs["sms"]
 sampleNum = 5
 x_pred = []
 per_person_pred = []
@@ -84,14 +82,6 @@ for i in range(data_num):
         trafficDF = traffic[i-(sampleNum):i:1]
         trafficList = trafficDF.values.tolist()
         trafficInput = [int(f) for f in trafficList]
-
-        # callsDF = call_array[i-(sampleNum):i:1]
-        # callsList = callsDF.values.tolist()
-        # callsInput = [int(f) for f in callsList]
-
-        # smsDF = sms_array[i-(sampleNum):i:1]
-        # smsList = smsDF.values.tolist()
-        # smsInput = [int(f) for f in smsList]
 
         standata = {
             'N': len(trafficInput),
